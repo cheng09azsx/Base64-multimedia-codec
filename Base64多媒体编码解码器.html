@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Base64多媒体编码解码器</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --secondary: #6366f1;
+            --light: #f8fafc;
+            --dark: #1e293b;
+            --success: #10b981;
+            --accent: #ef4444;
+            --border-radius: 14px;
+            --shadow-md: 0 6px 15px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0f172a, #1d4ed8);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: var(--dark);
+        }
+        
+        .container {
+            width: min(100%, 1000px);
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            margin: 0 20px;
+        }
+        
+        /* 顶部设计 */
+        header {
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            padding: 26px 20px;
+            text-align: center;
+            position: relative;
+            color: white;
+        }
+        
+        h1 {
+            font-size: clamp(1.8rem, 4vw, 2.4rem);
+            margin: 0 0 14px 0;
+            font-weight: 700;
+            line-height: 1.2;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+        
+        .title-icon {
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+        }
+        
+        .title-icon svg {
+            width: 32px;
+            height: 32px;
+            fill: var(--primary);
+        }
+        
+        .subtitle {
+            font-size: clamp(0.9rem, 2vw, 1.1rem);
+            max-width: 800px;
+            margin: 0 auto;
+            line-height: 1.5;
+            opacity: 0.9;
+        }
+        
+        /* 选项卡设计 */
+        .tabs-container {
+            max-width: 500px;
+            margin: 28px auto 0;
+        }
+        
+        .tabs {
+            display: flex;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 100px;
+            padding: 5px;
+            overflow: hidden;
+            justify-content: center;
+        }
+        
+        .tab {
+            flex: 1;
+            min-width: 120px;
+            padding: 13px 20px;
+            text-align: center;
+            border-radius: 100px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            white-space: nowrap;
+            font-size: 0.95rem;
+            color: rgba(255, 255, 255, 0.85);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .tab.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .tab svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+        
+        /* 面板设计 */
+        .content {
+            padding: 25px;
+        }
+        
+        .panel {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 25px;
+            box-shadow: var(--shadow-md);
+            border: 1px solid #e2e8f0;
+            display: none;
+            margin-bottom: 25px;
+        }
+        
+        .panel.active {
+            display: block;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .panel h2 {
+            color: var(--primary);
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.5rem;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f1f5f9;
+        }
+        
+        .panel svg {
+            width: 28px;
+            height: 28px;
+            fill: var(--primary);
+        }
+        
+        /* 上传区域 */
+        .upload-area {
+            border: 2px dashed #cbd5e1;
+            border-radius: var(--border-radius);
+            padding: 35px 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 25px;
+            background: #f8fafc;
+        }
+        
+        .upload-area:hover, .upload-area.dragover {
+            border-color: var(--primary);
+            background: rgba(59, 130, 246, 0.05);
+        }
+        
+        .upload-icon svg {
+            width: 60px;
+            height: 60px;
+            fill: var(--primary);
+            margin-bottom: 15px;
+        }
+        
+        .upload-text {
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #334155;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .highlight {
+            color: var(--primary);
+            font-weight: 700;
+        }
+        
+        /* 按钮组 */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 14px 28px;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            border-radius: 100px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
+            gap: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(59, 130, 246, 0.4);
+        }
+        
+        .btn-secondary {
+            background: white;
+            color: var(--primary);
+            border: 1px solid var(--primary);
+            box-shadow: none;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        /* 文本区域 */
+        textarea {
+            width: 100%;
+            height: 180px;
+            padding: 18px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            font-family: 'Courier New', monospace;
+            font-size: 15px;
+            resize: vertical;
+            margin-top: 15px;
+            background: #f8fafc;
+            line-height: 1.6;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        
+        /* 预览区域 */
+        .preview-area {
+            margin-top: 25px;
+            text-align: center;
+        }
+        
+        .preview-area h3 {
+            margin-bottom: 18px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 1.25rem;
+        }
+        
+        .preview-content {
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 25px;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+        }
+        
+        .preview-content p {
+            color: #64748b;
+            font-size: 1.1rem;
+        }
+        
+        .audio-preview {
+            width: 100%;
+            max-width: 100%;
+        }
+        
+        .image-preview {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+        }
+        
+        /* 文件信息 */
+        .file-info {
+            margin: 20px 0;
+            padding: 16px;
+            background: #f0f9ff;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            border-left: 4px solid var(--primary);
+        }
+        
+        .file-info strong {
+            color: var(--primary);
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        /* 状态提示 */
+        .status {
+            padding: 16px;
+            border-radius: 12px;
+            margin: 20px 0;
+            text-align: center;
+            font-weight: 500;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        
+        .status.info {
+            background: rgba(59, 130, 246, 0.1);
+            color: #2563eb;
+        }
+        
+        .status.success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #047857;
+        }
+        
+        .status.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #b91c1c;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 24px;
+            color: rgba(255, 255, 255, 0.85);
+            background: rgba(15, 23, 42, 0.7);
+            font-size: 0.9rem;
+            font-weight: 300;
+        }
+        
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .container {
+                margin: 0 10px;
+            }
+            
+            header {
+                padding: 22px 15px;
+            }
+            
+            .content {
+                padding: 20px 15px;
+            }
+            
+            .panel {
+                padding: 20px;
+            }
+            
+            .panel h2 {
+                font-size: 1.3rem;
+            }
+            
+            .upload-area {
+                padding: 25px 15px;
+            }
+            
+            .upload-icon svg {
+                width: 48px;
+                height: 48px;
+            }
+            
+            .btn {
+                padding: 12px 22px;
+                font-size: 0.95rem;
+            }
+            
+            .preview-content {
+                min-height: 160px;
+                padding: 20px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .tab {
+                padding: 12px 16px;
+                font-size: 0.9rem;
+            }
+            
+            .action-buttons, .btn-group {
+                gap: 10px;
+            }
+            
+            .btn {
+                padding: 10px 18px;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>
+                <span class="title-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M5 4v4c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2H7c-1.1 0-2 .9-2 2zm12 4V4h2v4h-2zm0 8v-2h2v2h-2zM3 8v10c0 1.1.9 2 2 2h12v-2H5V8H3zm16 12v-4h2v4c0 1.1-.9 2-2 2h-4v-2h4z"/>
+                    </svg>
+                </span>
+                Base64多媒体编码解码器
+            </h1>
+            <p class="subtitle">在线编码/解码音频和图片文件，保证您的隐私安全</p>
+            
+            <div class="tabs-container">
+                <div class="tabs">
+                    <div class="tab active" data-tab="audio">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                        </svg>
+                        音频处理
+                    </div>
+                    <div class="tab" data-tab="image">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                        </svg>
+                        图片处理
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <div class="content">
+            <!-- 音频处理面板 -->
+            <div class="panel audio-panel active">
+                <h2>
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                    </svg>
+                    音频Base64处理
+                </h2>
+                
+                <div class="upload-area" id="audioUploadArea">
+                    <div class="upload-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+                        </svg>
+                    </div>
+                    <div class="upload-text">
+                        拖放音频文件或<span class="highlight">点击选择</span>
+                    </div>
+                    <p class="small">支持MP3, WAV, OGG格式</p>
+                    <input type="file" id="audioFileInput" class="file-input" accept="audio/*">
+                </div>
+                
+                <div class="status info" id="audioStatus">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="#2563eb">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                    请上传音频文件或粘贴Base64数据
+                </div>
+                
+                <div class="btn-group">
+                    <button class="btn" id="encodeAudioBtn">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="white">
+                            <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
+                        </svg>
+                        编码为Base64
+                    </button>
+                    <button class="btn" id="decodeAudioBtn">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="white">
+                            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                        </svg>
+                        解码并播放
+                    </button>
+                    <button class="btn btn-secondary" id="clearAudioBtn">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="#3b82f6">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                        </svg>
+                        清除
+                    </button>
+                </div>
+                
+                <textarea id="audioBase64Input" placeholder="在此粘贴Base64编码的音频数据..."></textarea>
+                
+                <div class="preview-area">
+                    <h3>
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                        </svg>
+                        音频预览
+                    </h3>
+                    <div class="preview-content" id="audioPreview">
+                        <p>音频解码后将显示在这里</p>
+                    </div>
+                </div>
+                
+                <div class="action-buttons" id="audioDownloadSection">
+                    <button class="btn" id="downloadAudioBtn">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="white">
+                            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                        </svg>
+                        下载音频
+                    </button>
+                    <button class="btn btn-secondary" id="downloadAudioTextBtn">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="#3b82f6">
+                            <path d="M19 8H5c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-5 2.5h2v7h-2v-7zm-7 0h2v7H7v-7zm4 0h2v7h-2v-7z"/>
+                        </svg>
+                        下载文本
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 图片处理面板 -->
+            <div class="panel image-panel">
+                <h2>
+                    <svg viewBox="0 0 24 24">
+                        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                    </svg>
+                    图片Base64处理
+                </h2>
+                
+                <div class="upload-area" id="imageUploadArea">
+                    <div class="upload-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+                        </svg>
+                    </div>
+                    <div class="upload-text">
+                        拖放图片或<span class="highlight">点击选择</span>
+                    </div>
+                    <p class="small">支持JPG, PNG, GIF格式</p>
+                    <div class="paste-hint">提示：可粘贴剪贴板中的图片 (Ctrl+V)</div>
+                    <input type="file" id="imageFileInput" class="file-input" accept="image/*">
+                </div>
+                
+                <div class="status info" id="imageStatus">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="#2563eb">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                    请上传图片文件或粘贴Base64数据
+                </div>
+                
+                <div class="btn-group">
+                    <button class="btn" id="encodeImageBtn">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="white">
+                            <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
+                        </svg>
+                        编码为Base64
+                    </button>
+                    <button class="btn" id="decodeImageBtn">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="white">
+                            <path d="M10 8v8l5-4-5-4zm9-5H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/>
+                        </svg>
+                        解码并显示
+                    </button>
+                    <button class="btn btn-secondary" id="clearImageBtn">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="#3b82f6">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                        </svg>
+                        清除
+                    </button>
+                </div>
+                
+                <textarea id="imageBase64Input" placeholder="在此粘贴Base64编码的图片数据..."></textarea>
+                
+                <div class="preview-area">
+                    <h3>
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                        </svg>
+                        图片预览
+                    </h3>
+                    <div class="preview-content" id="imagePreview">
+                        <p>图片解码后将显示在这里</p>
+                    </div>
+                </div>
+                
+                <div class="action-buttons" id="imageDownloadSection">
+                    <button class="btn" id="downloadImageBtn">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="white">
+                            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                        </svg>
+                        下载图片
+                    </button>
+                    <button class="btn btn-secondary" id="downloadImageTextBtn">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="#3b82f6">
+                            <path d="M19 8H5c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-5 2.5h2v7h-2v-7zm-7 0h2v7H7v-7zm4 0h2v7h-2v-7z"/>
+                        </svg>
+                        下载文本
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Base64多媒体编码解码器 &copy; 2025 | 数据处理完全在浏览器中完成，保障您的隐私安全</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM 元素引用
+            const tabs = document.querySelectorAll('.tab');
+            const panels = document.querySelectorAll('.panel');
+            
+            // 音频面板元素
+            const audioPanel = {
+                uploadArea: document.getElementById('audioUploadArea'),
+                fileInput: document.getElementById('audioFileInput'),
+                base64Input: document.getElementById('audioBase64Input'),
+                encodeBtn: document.getElementById('encodeAudioBtn'),
+                decodeBtn: document.getElementById('decodeAudioBtn'),
+                clearBtn: document.getElementById('clearAudioBtn'),
+                preview: document.getElementById('audioPreview'),
+                status: document.getElementById('audioStatus'),
+                downloadSection: document.getElementById('audioDownloadSection'),
+                downloadBtn: document.getElementById('downloadAudioBtn'),
+                downloadTextBtn: document.getElementById('downloadAudioTextBtn')
+            };
+            
+            // 图片面板元素
+            const imagePanel = {
+                uploadArea: document.getElementById('imageUploadArea'),
+                fileInput: document.getElementById('imageFileInput'),
+                base64Input: document.getElementById('imageBase64Input'),
+                encodeBtn: document.getElementById('encodeImageBtn'),
+                decodeBtn: document.getElementById('decodeImageBtn'),
+                clearBtn: document.getElementById('clearImageBtn'),
+                preview: document.getElementById('imagePreview'),
+                status: document.getElementById('imageStatus'),
+                downloadSection: document.getElementById('imageDownloadSection'),
+                downloadBtn: document.getElementById('downloadImageBtn'),
+                downloadTextBtn: document.getElementById('downloadImageTextBtn')
+            };
+            
+            // 当前文件数据
+            let currentAudioFile = null;
+            let currentImageFile = null;
+            
+            // 初始化选项卡系统
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabId = this.dataset.tab;
+                    
+                    // 更新选项卡状态
+                    tabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // 更新面板状态
+                    panels.forEach(panel => panel.classList.remove('active'));
+                    document.querySelector(`.${tabId}-panel`).classList.add('active');
+                });
+            });
+            
+            // 设置文件上传区域（音频和图片）
+            setupFileUpload(audioPanel, 'audio', ['mp3', 'wav', 'ogg']);
+            setupFileUpload(imagePanel, 'image', ['jpg', 'jpeg', 'png', 'gif']);
+            
+            // 初始化事件监听器
+            initEventListeners();
+            
+            // 功能函数：设置文件上传区域
+            function setupFileUpload(panel, type, formats) {
+                const uploadArea = panel.uploadArea;
+                const fileInput = panel.fileInput;
+                
+                uploadArea.addEventListener('click', () => fileInput.click());
+                
+                uploadArea.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    uploadArea.style.borderColor = '#3b82f6';
+                    uploadArea.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
+                });
+                
+                uploadArea.addEventListener('dragleave', () => {
+                    uploadArea.style.borderColor = '#cbd5e1';
+                    uploadArea.style.backgroundColor = '#f8fafc';
+                });
+                
+                uploadArea.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    uploadArea.style.borderColor = '#cbd5e1';
+                    uploadArea.style.backgroundColor = '#f8fafc';
+                    
+                    if (e.dataTransfer.files.length > 0) {
+                        handleFileUpload(e.dataTransfer.files[0], panel);
+                    }
+                });
+                
+                fileInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        handleFileUpload(e.target.files[0], panel);
+                    }
+                });
+            }
+            
+            // 功能函数：处理文件上传
+            function handleFileUpload(file, panel) {
+                const isAudioPanel = (panel === audioPanel);
+                
+                showStatus(panel.status, 'info', '正在处理文件...');
+                
+                currentFile = {
+                    name: file.name,
+                    type: file.type,
+                    size: formatFileSize(file.size)
+                };
+                
+                // 更新UI显示文件信息
+                panel.uploadArea.innerHTML = `
+                    <div class="file-info">
+                        <strong>已选文件:</strong> ${currentFile.name}<br>
+                        <strong>类型:</strong> ${currentFile.type}<br>
+                        <strong>大小:</strong> ${currentFile.size}
+                    </div>
+                `;
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const base64Content = e.target.result.split(',')[1];
+                    panel.base64Input.value = base64Content;
+                    
+                    showStatus(panel.status, 'success', '文件加载成功！');
+                    
+                    if (isAudioPanel) {
+                        currentAudioFile = { ...currentFile, data: file };
+                    } else {
+                        currentImageFile = { ...currentFile, data: file };
+                    }
+                    
+                    // 自动解码预览
+                    setTimeout(() => {
+                        if (isAudioPanel) decodeAudio();
+                        else decodeImage();
+                    }, 300);
+                };
+                
+                reader.readAsDataURL(file);
+            }
+            
+            // 功能函数：更新状态显示
+            function showStatus(element, type, message) {
+                if (type === 'info') {
+                    element.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="#2563eb"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg> ${message}`;
+                } else if (type === 'success') {
+                    element.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="#10b981"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg> ${message}`;
+                } else if (type === 'error') {
+                    element.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="#ef4444"><path d="M11 15h2v2h-2zm0-8h2v6h-2zm.99-5C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg> ${message}`;
+                }
+                element.className = `status ${type}`;
+            }
+            
+            // 文件大小格式化函数
+            function formatFileSize(bytes) {
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                if (bytes === 0) return '0 B';
+                const i = Math.floor(Math.log(bytes) / Math.log(1024));
+                return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+            
+            // 解码音频
+            function decodeAudio() {
+                if (!currentAudioFile) {
+                    showStatus(audioPanel.status, 'error', '请先上传音频文件');
+                    return;
+                }
+                
+                const base64Data = audioPanel.base64Input.value.trim();
+                if (!base64Data) {
+                    showStatus(audioPanel.status, 'error', '请输入Base64音频数据');
+                    return;
+                }
+                
+                try {
+                    audioPanel.preview.innerHTML = '';
+                    const audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.classList.add('audio-preview');
+                    
+                    // 确定文件类型
+                    let fileType = 'mp3';
+                    if (currentAudioFile.type.includes('wav')) fileType = 'wav';
+                    else if (currentAudioFile.type.includes('ogg')) fileType = 'ogg';
+                    
+                    audio.src = `data:audio/${fileType};base64,${base64Data}`;
+                    audioPanel.preview.appendChild(audio);
+                    
+                    showStatus(audioPanel.status, 'success', '解码成功！点击播放');
+                    audioPanel.downloadSection.style.display = 'flex';
+                } catch (error) {
+                    showStatus(audioPanel.status, 'error', '音频解码失败: ' + error.message);
+                }
+            }
+            
+            // 解码图片
+            function decodeImage() {
+                if (!currentImageFile) {
+                    showStatus(imagePanel.status, 'error', '请先上传图片文件');
+                    return;
+                }
+                
+                const base64Data = imagePanel.base64Input.value.trim();
+                if (!base64Data) {
+                    showStatus(imagePanel.status, 'error', '请输入Base64图片数据');
+                    return;
+                }
+                
+                try {
+                    imagePanel.preview.innerHTML = '';
+                    const img = new Image();
+                    img.classList.add('image-preview');
+                    
+                    // 确定文件类型
+                    let fileType = 'png';
+                    if (currentImageFile.type.includes('jpeg') || currentImageFile.type.includes('jpg')) fileType = 'jpeg';
+                    else if (currentImageFile.type.includes('gif')) fileType = 'gif';
+                    
+                    img.src = `data:image/${fileType};base64,${base64Data}`;
+                    imagePanel.preview.appendChild(img);
+                    
+                    showStatus(imagePanel.status, 'success', '图片解码成功！');
+                    imagePanel.downloadSection.style.display = 'flex';
+                } catch (error) {
+                    showStatus(imagePanel.status, 'error', '图片解码失败: ' + error.message);
+                }
+            }
+            
+            // 初始化事件监听器
+            function initEventListeners() {
+                // 按钮事件绑定
+                audioPanel.encodeBtn.addEventListener('click', () => {
+                    if (!currentAudioFile) {
+                        showStatus(audioPanel.status, 'error', '请先上传音频文件');
+                        return;
+                    }
+                    showStatus(audioPanel.status, 'success', '音频已编码为Base64');
+                    audioPanel.downloadSection.style.display = 'flex';
+                });
+                
+                imagePanel.encodeBtn.addEventListener('click', () => {
+                    if (!currentImageFile) {
+                        showStatus(imagePanel.status, 'error', '请先上传图片文件');
+                        return;
+                    }
+                    showStatus(imagePanel.status, 'success', '图片已编码为Base64');
+                    imagePanel.downloadSection.style.display = 'flex';
+                });
+                
+                audioPanel.decodeBtn.addEventListener('click', decodeAudio);
+                imagePanel.decodeBtn.addEventListener('click', decodeImage);
+                
+                // 清除按钮事件
+                audioPanel.clearBtn.addEventListener('click', () => {
+                    audioPanel.fileInput.value = '';
+                    audioPanel.base64Input.value = '';
+                    audioPanel.preview.innerHTML = '<p>音频解码后将显示在这里</p>';
+                    audioPanel.uploadArea.innerHTML = `
+                        <div class="upload-icon">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+                            </svg>
+                        </div>
+                        <div class="upload-text">
+                            拖放音频文件或<span class="highlight">点击选择</span>
+                        </div>
+                        <p class="small">支持MP3, WAV, OGG格式</p>
+                    `;
+                    audioPanel.downloadSection.style.display = 'none';
+                    currentAudioFile = null;
+                    showStatus(audioPanel.status, 'info', '请上传音频文件或粘贴Base64数据');
+                });
+                
+                imagePanel.clearBtn.addEventListener('click', () => {
+                    imagePanel.fileInput.value = '';
+                    imagePanel.base64Input.value = '';
+                    imagePanel.preview.innerHTML = '<p>图片解码后将显示在这里</p>';
+                    imagePanel.uploadArea.innerHTML = `
+                        <div class="upload-icon">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+                            </svg>
+                        </div>
+                        <div class="upload-text">
+                            拖放图片或<span class="highlight">点击选择</span>
+                        </div>
+                        <p class="small">支持JPG, PNG, GIF格式</p>
+                        <div class="paste-hint">提示：可粘贴剪贴板中的图片 (Ctrl+V)</div>
+                    `;
+                    imagePanel.downloadSection.style.display = 'none';
+                    currentImageFile = null;
+                    showStatus(imagePanel.status, 'info', '请上传图片文件或粘贴Base64数据');
+                });
+                
+                // 下载按钮事件
+                audioPanel.downloadBtn.addEventListener('click', () => {
+                    if (!currentAudioFile) {
+                        showStatus(audioPanel.status, 'error', '没有可下载的音频文件');
+                        return;
+                    }
+                    
+                    const link = document.createElement('a');
+                    link.href = `data:${currentAudioFile.type};base64,${audioPanel.base64Input.value}`;
+                    link.download = currentAudioFile.name;
+                    link.click();
+                    
+                    showStatus(audioPanel.status, 'success', '音频文件下载中...');
+                });
+                
+                imagePanel.downloadBtn.addEventListener('click', () => {
+                    if (!currentImageFile) {
+                        showStatus(imagePanel.status, 'error', '没有可下载的图片文件');
+                        return;
+                    }
+                    
+                    const link = document.createElement('a');
+                    link.href = `data:${currentImageFile.type};base64,${imagePanel.base64Input.value}`;
+                    link.download = currentImageFile.name;
+                    link.click();
+                    
+                    showStatus(imagePanel.status, 'success', '图片文件下载中...');
+                });
+                
+                // 剪贴板粘贴图片功能
+                document.addEventListener('paste', function(e) {
+                    // 只在图片面板激活时处理粘贴事件
+                    const imagePanel = document.querySelector('.image-panel');
+                    if (!imagePanel.classList.contains('active')) return;
+                    
+                    const items = e.clipboardData.items;
+                    for (let i = 0; i < items.length; i++) {
+                        if (items[i].type.indexOf('image') !== -1) {
+                            const blob = items[i].getAsFile();
+                            if (blob) {
+                                handleFileUpload(blob, imagePanel);
+                                e.preventDefault();
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
